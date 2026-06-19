@@ -6,7 +6,14 @@ from openai import AsyncOpenAI
 
 from app.config import settings
 from app.data import get_company_info
-from app.tools import SEARCH_PRODUCTS_TOOL, search_products
+from app.tools import (
+    ANALYZE_PRODUCTS_TOOL,
+    SEARCH_PRODUCTS_TOOL,
+    analyze_products,
+    search_products,
+    _ALLOWED_OPS,
+    _ALL_COLS,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -67,9 +74,13 @@ def _build_system_prompt() -> str:
         f"{name} topics.",
         "",
         "## Tool use",
-        "Call search_products whenever the customer asks about specific products,",
-        "categories, prices, stock, or recommendations. Present results in a friendly,",
-        "readable way — never dump raw data at the user.",
+        "Call search_products whenever the customer asks to find or browse specific products,",
+        "filter by category, price range, or stock availability.",
+        "Call analyze_products for aggregate or analytical questions: counts, averages,",
+        "totals, min/max values, rankings, comparisons across categories or brands,",
+        "or listing unique values (e.g. 'what brands do you carry?', 'average price',",
+        "'most expensive product', 'how many items in Electronics?').",
+        "Present results in a friendly, readable way — never dump raw data at the user.",
     ]
 
     return "\n".join(parts)
@@ -94,15 +105,9 @@ class ChatResult:
 # Tool-arg validation
 # ---------------------------------------------------------------------------
 
-def _validate_tool_args(raw: object) -> dict:
-    """
-    Accept only the exact scalar types the tool schema declares.
-    Silently drops unexpected keys and wrong-typed values so that
-    no model-supplied string ever reaches eval/exec/df.query.
-    """
+def _validate_search_args(raw: object) -> dict:
     if not isinstance(raw, dict):
         return {}
-
     validated: dict = {}
     if isinstance(raw.get("name"), str):
         validated["name"] = raw["name"]
@@ -114,7 +119,42 @@ def _validate_tool_args(raw: object) -> dict:
     if isinstance(raw.get("in_stock"), bool):
         validated["in_stock"] = raw["in_stock"]
     if isinstance(raw.get("limit"), int):
-        validated["limit"] = raw["limit"]  # search_products clamps to 1–20
+        validated["limit"] = raw["limit"]
+    return validated
+
+
+def _validate_analyze_args(raw: object) -> dict:
+    if not isinstance(raw, dict):
+        return {"operation": "count"}
+    validated: dict = {}
+
+    op = raw.get("operation")
+    if isinstance(op, str) and op in _ALLOWED_OPS:
+        validated["operation"] = op
+    else:
+        return {"operation": "count"}
+
+    for col_key in ("column", "group_by", "sort_by"):
+        v = raw.get(col_key)
+        if isinstance(v, str) and v in _ALL_COLS:
+            validated[col_key] = v
+
+    if isinstance(raw.get("ascending"), bool):
+        validated["ascending"] = raw["ascending"]
+    if isinstance(raw.get("limit"), int):
+        validated["limit"] = raw["limit"]
+
+    # filters (same validation as search)
+    if isinstance(raw.get("name"), str):
+        validated["name"] = raw["name"]
+    if isinstance(raw.get("category"), str):
+        validated["category"] = raw["category"]
+    for price_key in ("min_price", "max_price"):
+        if isinstance(raw.get(price_key), (int, float)):
+            validated[price_key] = float(raw[price_key])
+    if isinstance(raw.get("in_stock"), bool):
+        validated["in_stock"] = raw["in_stock"]
+
     return validated
 
 
@@ -143,7 +183,7 @@ async def chat(history: list[dict]) -> ChatResult:
         response = await _client.chat.completions.create(
             model=settings.openai_model,
             messages=messages,
-            tools=[SEARCH_PRODUCTS_TOOL],
+            tools=[SEARCH_PRODUCTS_TOOL, ANALYZE_PRODUCTS_TOOL],
             tool_choice="auto",
         )
 
@@ -166,16 +206,18 @@ async def chat(history: list[dict]) -> ChatResult:
 
         # Execute each requested tool call and feed results back.
         for tool_call in last_choice.message.tool_calls:
-            if tool_call.function.name != "search_products":
-                # Unknown tool — return an empty result so the loop can continue.
-                tool_result: list = []
+            fn_name = tool_call.function.name
+            try:
+                raw_args = json.loads(tool_call.function.arguments)
+            except (json.JSONDecodeError, TypeError):
+                raw_args = {}
+
+            if fn_name == "search_products":
+                tool_result: object = search_products(**_validate_search_args(raw_args))
+            elif fn_name == "analyze_products":
+                tool_result = analyze_products(**_validate_analyze_args(raw_args))
             else:
-                try:
-                    raw_args = json.loads(tool_call.function.arguments)
-                    args = _validate_tool_args(raw_args)
-                except (json.JSONDecodeError, TypeError):
-                    args = {}
-                tool_result = search_products(**args)
+                tool_result = []
 
             messages.append({
                 "role": "tool",
