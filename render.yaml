@@ -1,0 +1,29 @@
+services:
+  - type: web
+    name: shopnest-chatbot
+    env: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_MODEL
+        sync: false
+      - key: UPSTASH_REDIS_REST_URL
+        sync: false
+      - key: UPSTASH_REDIS_REST_TOKEN
+        sync: false
+      - key: TURNSTILE_SECRET_KEY
+        sync: false
+      - key: TURNSTILE_SITE_KEY
+        sync: false
+      - key: ALLOWED_ORIGINS
+        sync: false
+      - key: DAILY_TOKEN_LIMIT
+        sync: false
+      - key: MAX_QUERY_TOKENS
+        sync: false
+      - key: GLOBAL_DAILY_TOKEN_LIMIT
+        sync: false

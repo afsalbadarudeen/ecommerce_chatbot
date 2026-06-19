@@ -1,0 +1,15 @@
+{
+  "name": "ShopNest",
+  "description": "ShopNest is an online retailer offering electronics, home goods, sports equipment, and beauty products — all carefully selected for quality and value.",
+  "about": "Founded in 2021, ShopNest ships across the continental US. We carry hundreds of products across four categories and add new arrivals every week.",
+  "contact": {
+    "email": "support@shopnest.com",
+    "phone": "1-800-555-0199",
+    "hours": "Monday–Friday, 9 am–6 pm ET"
+  },
+  "policies": {
+    "returns": "Free 30-day returns on all orders. Items must be unused and in original packaging.",
+    "shipping": "Free standard shipping on orders over $50. Express (2-day) shipping available at checkout.",
+    "warranty": "All electronics come with a 1-year manufacturer warranty."
+  }
+}

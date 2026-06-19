@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ShopNest Support</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div class="app">
+
+    <header class="header">
+      <span class="brand" id="brand">ShopNest Support</span>
+      <button id="new-chat-btn" class="btn-outline">New conversation</button>
+    </header>
+
+    <main class="chat-area" id="chat-area">
+      <div class="welcome" id="welcome">
+        <p class="welcome-title">How can I help you?</p>
+        <p class="welcome-sub">
+          Ask me about products, prices, availability, shipping, or our return policy.
+        </p>
+      </div>
+    </main>
+
+    <footer class="input-footer">
+      <div class="turnstile-row">
+        <div id="turnstile-container"></div>
+      </div>
+      <div class="input-row">
+        <textarea
+          id="message-input"
+          placeholder="Type your message..."
+          rows="1"
+          maxlength="4000"
+          aria-label="Message"
+        ></textarea>
+        <button id="send-btn" class="btn-primary" disabled aria-label="Send message">
+          Send
+        </button>
+      </div>
+    </footer>
+
+  </div>
+
+  <!--
+    Turnstile loads asynchronously. ?onload=onTurnstileReady calls our
+    function when the library is ready. ?render=explicit prevents it from
+    auto-rendering any cf-turnstile divs in the DOM.
+  -->
+  <script
+    src="https://challenges.cloudflare.com/turnstile/v0/api.js?onload=onTurnstileReady&render=explicit"
+    async defer
+  ></script>
+  <script src="/script.js"></script>
+</body>
+</html>
