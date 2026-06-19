@@ -1,6 +1,8 @@
 'use strict';
 
-/* ── State (never written to any storage) ───────────────────── */
+const STORAGE_KEY = 'shopnest_chat_history';
+
+/* ── State ───────────────────────────────────────────────────── */
 let messages       = [];     // conversation history for this session
 let turnstileToken = null;   // single-use token; consumed on each send
 let widgetId       = null;   // Turnstile widget handle for reset
@@ -46,6 +48,9 @@ async function initTurnstile() {
 
 // Cloudflare calls this global after its script loads (?onload=onTurnstileReady)
 window.onTurnstileReady = initTurnstile;
+
+// Restore any saved conversation before Turnstile finishes loading
+restoreHistory();
 
 /* ── Send button state ───────────────────────────────────────── */
 function refreshSendBtn() {
@@ -157,6 +162,7 @@ async function handleSend() {
     if (res.ok) {
       // Commit both turns to history only on success
       messages.push(pendingMsg, { role: 'assistant', content: data.reply ?? '' });
+      saveHistory();
       appendBubble('assistant', data.reply ?? '');
     } else {
       appendError(errorText(res.status));
@@ -171,9 +177,29 @@ async function handleSend() {
   }
 }
 
+/* ── History persistence (localStorage) ─────────────────────── */
+function saveHistory() {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(messages)); } catch { /* quota exceeded — ignore */ }
+}
+
+function restoreHistory() {
+  let stored;
+  try { stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null'); } catch { return; }
+  if (!Array.isArray(stored) || stored.length === 0) return;
+
+  messages = stored;
+  setWelcomeVisible(false);
+  for (const msg of messages) {
+    if (msg.role === 'user' || msg.role === 'assistant') {
+      appendBubble(msg.role, msg.content ?? '');
+    }
+  }
+}
+
 /* ── New conversation ────────────────────────────────────────── */
 function newConversation() {
   messages = [];
+  try { localStorage.removeItem(STORAGE_KEY); } catch { /* ignore */ }
 
   // Clear chat area — keep the welcome element in the DOM, remove everything else
   [...chatArea.children].forEach(el => { if (el !== welcomeEl) el.remove(); });
